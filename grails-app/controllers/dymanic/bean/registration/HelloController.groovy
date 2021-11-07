@@ -5,10 +5,8 @@ import dymanic.bean.registration.forscanning.firstcase.ImplementationOneA
 
 class HelloController {
 
-    PrototypeProvider prototypeProvider
-
     def index() {
-        ImplementationOneA implementationOneA = PrototypeProvider.get(ImplementationOneA)
+        ImplementationOneA implementationOneA = PrototypeProvider.get(ImplementationOneA.class)
         implementationOneA.testMethod()
     }
 

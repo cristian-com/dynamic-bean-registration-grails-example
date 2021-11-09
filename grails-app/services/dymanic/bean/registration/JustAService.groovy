@@ -8,6 +8,7 @@ class JustAService {
 
     def hello() {
         print(grailsApplication)
+        log.debug("Hello world")
     }
 
 }

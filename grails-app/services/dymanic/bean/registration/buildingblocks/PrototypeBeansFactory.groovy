@@ -7,15 +7,13 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.config.RuntimeBeanReference
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
-import org.springframework.util.ClassUtils
 
 import java.lang.reflect.Field
-import java.util.concurrent.ConcurrentHashMap
 
 class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
 
-    static ConfigurableBeanFactory springBeanFactory
-    private final Map<Class, String> beans = new ConcurrentHashMap<>()
+    ConfigurableBeanFactory springBeanFactory
+    WorkflowRepository workflowRepository
 
     @Override
     void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
@@ -24,31 +22,60 @@ class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
 
     @Override
     void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
-        Set<BeanDefinition> types = DefinitionsScanner.scan(registry)
+        Set<BeanDefinitionWrapper> workflows = DefinitionsScanner.scanWorkflows(registry)
+        Set<BeanDefinitionWrapper> activities = DefinitionsScanner.scanActivities(registry)
 
-        types.each { BeanDefinition beanDefinition ->
-            String beanName = beanDefinition.getBeanClassName()
-            beanDefinition.setScope(BeanDefinition.SCOPE_PROTOTYPE)
-            addDependencies(beanDefinition, registry)
+        registerWorkflows(workflows, registry)
+        registerActivities(activities, registry)
+    }
 
-            beanDefinition.setFactoryBeanName("specificFactory")
-            beanDefinition.setFactoryMethodName("newActivityStub")
+    private void registerWorkflows(Set<BeanDefinitionWrapper> workflows, BeanDefinitionRegistry registry) {
+        registerBeans(workflows, registry, "specificFactory", SpecificFactory.METHOD_FACTORY_NAME)
+        workflows.each { BeanDefinitionWrapper it -> workflowRepository.addWorkflow(it) }
+    }
 
+    private void registerActivities(Set<BeanDefinitionWrapper> activities, BeanDefinitionRegistry registry) {
+        registerBeans(activities, registry, "specificFactory", SpecificFactory.METHOD_FACTORY_NAME)
+        activities.each { BeanDefinitionWrapper it -> workflowRepository.addActivity(it) }
+    }
+
+    private static Set<BeanDefinitionWrapper> registerBeans(Set<BeanDefinitionWrapper> beanDefinitions,
+                                                    BeanDefinitionRegistry registry, String factoryName,
+                                                    String factoryMethod) {
+        beanDefinitions.each { BeanDefinitionWrapper beanDefinitionWrapper ->
+            String beanName = beanDefinitionWrapper.getBeanClassName()
+            BeanDefinition beanDefinition = getConfiguredBeanDefinition(beanDefinitionWrapper, registry, factoryName, factoryMethod)
             registry.registerBeanDefinition(beanName, beanDefinition)
-            beans.put(beanDefinition.getClass(), beanName)
         }
     }
 
-    private static void addDependencies(BeanDefinition beanDefinition,
-                                        BeanDefinitionRegistry registry) {
-        Class<?> clazz = ClassUtils.resolveClassName(beanDefinition.getBeanClassName(), null)
+    private static BeanDefinition getConfiguredBeanDefinition(BeanDefinitionWrapper beanDefinitionWrapper,
+                                                              BeanDefinitionRegistry registry, String factoryName,
+                                                              String factoryMethod) {
+        beanDefinitionWrapper.setScope(BeanDefinition.SCOPE_PROTOTYPE)
 
-        clazz.getDeclaredFields().each { Field field ->
-            if (registry.containsBeanDefinition(field.getName())) {
-                RuntimeBeanReference runtimeBeanReference = new RuntimeBeanReference(field.getName())
-                beanDefinition.getPropertyValues().addPropertyValue(field.getName(), runtimeBeanReference)
+        Map<String, RuntimeBeanReference> dependencies = getDependencies(beanDefinitionWrapper.resolveBeanClass(), registry)
+
+        dependencies.each { String dependencyName, RuntimeBeanReference beanReference ->
+            beanDefinitionWrapper.getPropertyValues().addPropertyValue(dependencyName, beanReference)
+        }
+
+        beanDefinitionWrapper.setFactoryBeanName(factoryName)
+        beanDefinitionWrapper.setFactoryMethodName(factoryMethod)
+
+        return beanDefinitionWrapper.beanDefinition
+    }
+
+    private static Map<String, RuntimeBeanReference> getDependencies(Class<?> target, BeanDefinitionRegistry beansRegistry) {
+        Map<String, RuntimeBeanReference> dependencies = new HashMap<>()
+
+        target.getDeclaredFields().each { Field field ->
+            if (beansRegistry.containsBeanDefinition(field.getName())) {
+                dependencies.put(field.getName(), new RuntimeBeanReference(field.getName()))
             }
         }
+
+        return dependencies
     }
 
 }

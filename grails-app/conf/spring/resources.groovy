@@ -1,16 +1,16 @@
-import dymanic.bean.registration.buildingblocks.PrototypeBeansFactory
-import dymanic.bean.registration.buildingblocks.PrototypeProvider
-import dymanic.bean.registration.buildingblocks.SpecificFactory
+import dymanic.bean.registration.buildingblocks.WorkerBeansFactory
+import dymanic.bean.registration.buildingblocks.WorkflowProvider
+import dymanic.bean.registration.buildingblocks.WorkflowsFactory
 
 // Place your Spring DSL code here
 beans = {
-    redisCacheService(PrototypeBeansFactory) { bean ->
+    redisCacheService(WorkerBeansFactory) { bean ->
         bean.autowire = 'byName'
     }
-    anotherServcdd(PrototypeProvider) { bean ->
+    anotherServcdd(WorkflowProvider) { bean ->
         bean.autowire = 'byName'
     }
-    specificFactory(SpecificFactory) { bean ->
+    specificFactory(WorkflowsFactory) { bean ->
         bean.autowire = 'byName'
     }
 }

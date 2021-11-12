@@ -6,7 +6,11 @@ class BeanArgsWrapper {
     final List<Object> args
 
     private BeanArgsWrapper(Object... args) {
-        this.args = Arrays.asList(args)
+        if (args){
+            this.args = Arrays.asList(args).asImmutable()
+        } else {
+            this.args = Collections.emptyList()
+        }
     }
 
     static BeanArgsWrapper of(Object... args) {

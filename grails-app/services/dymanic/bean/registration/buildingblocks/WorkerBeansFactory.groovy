@@ -10,7 +10,7 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProce
 
 import java.lang.reflect.Field
 
-class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
+class WorkerBeansFactory implements BeanDefinitionRegistryPostProcessor {
 
     ConfigurableBeanFactory springBeanFactory
     WorkflowRepository workflowRepository
@@ -22,20 +22,20 @@ class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
 
     @Override
     void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
-        Set<BeanDefinitionWrapper> workflows = DefinitionsScanner.scanWorkflows(registry)
-        Set<BeanDefinitionWrapper> activities = DefinitionsScanner.scanActivities(registry)
+        Set<BeanDefinitionWrapper> workflows = BeanImplementationsScanner.scanWorkflows(registry)
+        Set<BeanDefinitionWrapper> activities = BeanImplementationsScanner.scanActivities(registry)
 
         registerWorkflows(workflows, registry)
         registerActivities(activities, registry)
     }
 
     private void registerWorkflows(Set<BeanDefinitionWrapper> workflows, BeanDefinitionRegistry registry) {
-        registerBeans(workflows, registry, "specificFactory", SpecificFactory.METHOD_FACTORY_NAME)
+        registerBeans(workflows, registry, "specificFactory", WorkflowsFactory.METHOD_FACTORY_NAME)
         workflows.each { BeanDefinitionWrapper it -> workflowRepository.addWorkflow(it) }
     }
 
     private void registerActivities(Set<BeanDefinitionWrapper> activities, BeanDefinitionRegistry registry) {
-        registerBeans(activities, registry, "specificFactory", SpecificFactory.METHOD_FACTORY_NAME)
+        registerBeans(activities, registry, "specificFactory", WorkflowsFactory.METHOD_FACTORY_NAME)
         activities.each { BeanDefinitionWrapper it -> workflowRepository.addActivity(it) }
     }
 
@@ -44,7 +44,8 @@ class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
                                                     String factoryMethod) {
         beanDefinitions.each { BeanDefinitionWrapper beanDefinitionWrapper ->
             String beanName = beanDefinitionWrapper.getBeanClassName()
-            BeanDefinition beanDefinition = getConfiguredBeanDefinition(beanDefinitionWrapper, registry, factoryName, factoryMethod)
+            BeanDefinition beanDefinition = getConfiguredBeanDefinition(beanDefinitionWrapper, registry,
+                    factoryName, factoryMethod)
             registry.registerBeanDefinition(beanName, beanDefinition)
         }
     }
@@ -53,15 +54,15 @@ class PrototypeBeansFactory implements BeanDefinitionRegistryPostProcessor {
                                                               BeanDefinitionRegistry registry, String factoryName,
                                                               String factoryMethod) {
         beanDefinitionWrapper.setScope(BeanDefinition.SCOPE_PROTOTYPE)
+        beanDefinitionWrapper.setFactoryBeanName(factoryName)
+        beanDefinitionWrapper.setFactoryMethodName(factoryMethod)
+        beanDefinitionWrapper.setLazyInit(false)
 
         Map<String, RuntimeBeanReference> dependencies = getDependencies(beanDefinitionWrapper.resolveBeanClass(), registry)
 
         dependencies.each { String dependencyName, RuntimeBeanReference beanReference ->
             beanDefinitionWrapper.getPropertyValues().addPropertyValue(dependencyName, beanReference)
         }
-
-        beanDefinitionWrapper.setFactoryBeanName(factoryName)
-        beanDefinitionWrapper.setFactoryMethodName(factoryMethod)
 
         return beanDefinitionWrapper.beanDefinition
     }
